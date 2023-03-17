@@ -1,0 +1,8 @@
+# Ignore sensitive Terraform files
+*.tfstate
+*.tfstate.*
+*.tfvars
+
+# Ignore all .terraform directories and lock files
+terraform/.terraform/*
+*.terraform.lock.hcl
