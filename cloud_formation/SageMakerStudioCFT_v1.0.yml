@@ -1,0 +1,147 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: SageMaker Studio CloudFormation Template
+Metadata:
+  'AWS::CloudFormation::Interface':
+    ParameterGroups:
+      - Label:
+          default: Required SageMaker Parameters
+        Parameters:
+          - pSageMakerDomainName
+      - Label:
+          default: Optional SageMaker Parameters
+        Parameters:
+          - pVPCId
+          - pSubnetIds
+          - pSecurityGroupIds
+          - pSageMakerRoleArn
+    ParameterLabels:
+      pVPCId:
+        default: VPC Id
+      pSubnetIds:
+        default: Subnet Ids
+      pSecurityGroupIds:
+        default: Security Group Ids
+      pSageMakerRoleArn:
+        default: SageMaker IAM Role
+      pSageMakerDomainName:
+        default: SageMaker Domain Name
+Parameters:
+  pSageMakerDomainName:
+    AllowedPattern: '[A-Za-z0-9-]{1,63}'
+    Default: "SageMakerStudioDomain"
+    Description: SageMaker Studio Domain Name
+    MaxLength: '63'
+    MinLength: '1'
+    Type: String
+  pVPCId:
+    Description: Select the VPC for SageMaker Studio (optional).
+    Type: String
+    Default: ''
+    AllowedPattern: '^$|^vpc-[-0-9a-zA-Z]+'
+  pSubnetIds:
+    Description: Select the subnets for SageMaker Studio (optional).
+    Type: List<String>
+    Default: ''
+    AllowedPattern: '^$|^subnet-[-0-9a-zA-Z]+'
+  pSecurityGroupIds:
+    Description: Select a security group for SageMaker Studio (optional).
+    Type: List<String>
+    Default: ''
+    AllowedPattern: '^$|^sg-[-0-9a-zA-Z]+'
+  pSageMakerRoleArn:
+    Description: >-
+      ARN of the SageMaker IAM execution role. If you don't specify a role, a
+      new role is created with AmazonSageMakerFullAccess managed policy.
+    Type: String
+    Default: ''
+Conditions:
+  cRoleArnEmpty: !Equals 
+    - !Ref pSageMakerRoleArn
+    - ''
+  cVPCNotEmpty: !Not 
+    - !Equals 
+      - !Ref pVPCId
+      - ''
+  cVPCEmpty: !Equals
+    - !Ref pVPCId
+    - ''
+  cSubnetNotEmpty: !Not 
+    - !Equals 
+      - !Select 
+        - '0'
+        - !Ref pSubnetIds
+      - ''
+  cSubnetEmpty: !Equals
+    - !Select 
+      - '0'
+      - !Ref pSubnetIds
+    - ''
+  cSecurityGroupNotEmpty: !Not 
+    - !Equals 
+      - !Select 
+        - '0'
+        - !Ref pSecurityGroupIds
+      - ''
+Resources:
+  DefaultVPC:
+    Type: 'AWS::EC2::VPC'
+    Condition: cVPCEmpty
+    Properties:
+      CidrBlock: '10.0.0.0/16'
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+
+  DefaultSubnet:
+    Type: 'AWS::EC2::Subnet'
+    Condition: cSubnetEmpty
+    Properties:
+      VpcId: !If
+        - cVPCNotEmpty
+        - !Ref pVPCId
+        - !Ref DefaultVPC
+      CidrBlock: '10.0.0.0/24'
+      MapPublicIpOnLaunch: true
+
+  ExecutionRole:
+    Type: 'AWS::IAM::Role'
+    Condition: cRoleArnEmpty
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17' 
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - 'sagemaker.amazonaws.com'
+            Action:
+              - 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/AmazonSageMakerFullAccess'
+
+  SageMakerStudioDomain:
+    Type: 'AWS::SageMaker::Domain'
+    Properties:
+      DomainName: !Ref pSageMakerDomainName
+      AuthMode: IAM
+      VpcId: !If
+        - cVPCNotEmpty
+        - !Ref pVPCId
+        - !Ref DefaultVPC
+      SubnetIds: !If
+        - cSubnetNotEmpty
+        - !Ref pSubnetIds
+        - !Split [',', !Sub '${DefaultSubnet}']
+      DefaultUserSettings:
+        ExecutionRole: !If
+          - cRoleArnEmpty
+          - !GetAtt ExecutionRole.Arn
+          - !Ref pSageMakerRoleArn
+        SecurityGroups: !If
+          - cSecurityGroupNotEmpty
+          - !Ref pSecurityGroupIds
+          - !Ref 'AWS::NoValue'
+
+Outputs:
+  SageMakerStudioDomainUrl:
+    Description: The URL of the SageMaker Studio Domain
+    Value: !GetAtt SageMakerStudioDomain.Url
