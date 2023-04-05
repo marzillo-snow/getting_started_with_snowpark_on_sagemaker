@@ -20,7 +20,10 @@ provider "aws" {
 }
 
 /* For the purpose of this lab, unless you're already using Terraform,
-it will be easier to just run the two lines of SQL above in the Snowflake console.
+it will be easier to just run the two lines of SQL below in the Snowflake console.
+
+CREATE OR REPLACE WAREHOUSE HOL_WH WITH WAREHOUSE_SIZE='X-SMALL';
+CREATE OR REPLACE DATABASE HOL_DB;
 
 However, if you're comfortable with Terraform or want to learn, you can uncomment
 the code below and follow the guide here to set up your connection:
